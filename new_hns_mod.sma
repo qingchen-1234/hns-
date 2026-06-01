@@ -13,7 +13,7 @@
 #include <nvault>
 
 #define PLUGIN  "Hide and Seek Mod"
-#define VERSION "2.0"
+#define VERSION "2.1"
 #define AUTHOR  "HNS Community"
 
 // ======================================================================
@@ -63,27 +63,27 @@ new g_iStoredMoney[MAX_PLAYERS+1]
 new g_iLicenses[MAX_PLAYERS+1]
 new g_iPlayTimeSec[MAX_PLAYERS+1]
 new g_iRoundKills[MAX_PLAYERS+1]
-new bool:g_bFrozen[MAX_PLAYERS+1]
+new g_bFrozen[MAX_PLAYERS+1]              // FIX: removed bool: tag
 new g_iSuperhumanLv[MAX_PLAYERS+1]
 
 // Shop states (per round, per player)
-new bool:g_bClairvoyanceRound[MAX_PLAYERS+1]
+new g_bClairvoyanceRound[MAX_PLAYERS+1]   // FIX: removed bool: tag
 new Float:g_flMedkitCD[MAX_PLAYERS+1]
 new g_iFlashBought[MAX_PLAYERS+1]
 new g_iSmokeBought[MAX_PLAYERS+1]
 new Float:g_flFlashCD[MAX_PLAYERS+1]
-new bool:g_bFallShopActive[MAX_PLAYERS+1]
-new bool:g_bKungFuActive[MAX_PLAYERS+1]
+new g_bFallShopActive[MAX_PLAYERS+1]      // FIX: removed bool: tag
+new g_bKungFuActive[MAX_PLAYERS+1]       // FIX: removed bool: tag
 
 // Auto clairvoyance
-new bool:g_bAutoCV[MAX_PLAYERS+1]
+new g_bAutoCV[MAX_PLAYERS+1]             // FIX: removed bool: tag
 
 // Mute
-new bool:g_bMuted[MAX_PLAYERS+1][MAX_PLAYERS+1]
+new g_bMuted[MAX_PLAYERS+1][MAX_PLAYERS+1] // FIX: removed bool: tag
 
 // License menu tracking
 new g_iLicPage[MAX_PLAYERS+1]
-new bool:g_bInLicMenu[MAX_PLAYERS+1]
+new g_bInLicMenu[MAX_PLAYERS+1]          // FIX: removed bool: tag
 
 // --- Team Data [TEAM_T=0, TEAM_CT=1] ---
 new g_iTeamSpeedLv[2]
@@ -96,12 +96,12 @@ new g_iTeamGravityLv[2]
 new g_iTeamLicUsed[2]
 
 // --- Round Data ---
-new bool:g_bRoundActive
-new bool:g_bFreezePeriod
+new g_bRoundActive                       // FIX: removed bool: tag
+new g_bFreezePeriod                      // FIX: removed bool: tag
 new Float:g_flRoundStartTime
 new g_iConsecutiveCTLoss
-new bool:g_bCTAllSurvived
-new bool:g_bTAllSurvived
+new g_bCTAllSurvived                     // FIX: removed bool: tag
+new g_bTAllSurvived                      // FIX: removed bool: tag
 
 // --- Config ---
 new g_iFreezeTime
@@ -113,6 +113,7 @@ new g_iCollisionMode       // 1=teammate no collision, 2=all collision
 new g_iMaxPlayers
 new g_vault
 new g_sBeamSprite
+new Float:g_flLastSurvivalTick
 
 // ======================================================================
 // Macros for team index
@@ -164,7 +165,6 @@ public plugin_init() {
     RegisterHam(Ham_Spawn,         "player", "Ham_Spawn_Post",       1)
     RegisterHam(Ham_Killed,        "player", "Ham_Killed_Post",      1)
     RegisterHam(Ham_TakeDamage,    "player", "Ham_TakeDamage_Pre",   0)
-    RegisterHam(Ham_ResetMaxSpeed, "player", "Ham_ResetMaxSpeed_Post",1)
     RegisterHam(Ham_AddPlayerItem, "player", "Ham_AddItem_Pre",      0)
 
     // FM hooks
@@ -196,9 +196,9 @@ public plugin_init() {
 
     // Server settings
     server_cmd("sv_airaccelerate 100")
-    server_cmd("mp_freezetime 0")   // We handle freeze ourselves
-    server_cmd("mp_buytime 0")      // Disable buy
-    server_cmd("mp_friendlyfire 0") // No FF
+    server_cmd("mp_freezetime 0")
+    server_cmd("mp_buytime 0")
+    server_cmd("mp_friendlyfire 0")
 }
 
 public plugin_precache() {
@@ -207,7 +207,6 @@ public plugin_precache() {
 
 public plugin_cfg() {
     server_cmd("sv_airaccelerate 100")
-    // Load cvars
     g_iFreezeTime = get_cvar_num("hns_freezetime")
     if (g_iFreezeTime < 0) g_iFreezeTime = 0
     g_iLicenseLimit = get_cvar_num("hns_license_limit")
@@ -226,10 +225,10 @@ public client_putinserver(id) {
     g_iLicenses[id] = 0
     g_iPlayTimeSec[id] = 0
     g_iSuperhumanLv[id] = 0
-    g_bInLicMenu[id] = false
+    g_bInLicMenu[id] = 0
     g_iLicPage[id] = 0
     for (new i = 1; i <= g_iMaxPlayers; i++)
-        g_bMuted[id][i] = false
+        g_bMuted[id][i] = 0
     LoadPlayerData(id)
 }
 
@@ -245,26 +244,27 @@ public client_disconnected(id) {
 ResetPlayerRound(id) {
     g_iRoundMoney[id] = 0
     g_iRoundKills[id] = 0
-    g_bFrozen[id] = false
-    g_bClairvoyanceRound[id] = false
+    g_bFrozen[id] = 0
+    g_bClairvoyanceRound[id] = 0
     g_flMedkitCD[id] = 0.0
     g_iFlashBought[id] = 0
     g_iSmokeBought[id] = 0
     g_flFlashCD[id] = 0.0
-    g_bFallShopActive[id] = false
-    g_bKungFuActive[id] = false
-    g_bAutoCV[id] = false
+    g_bFallShopActive[id] = 0
+    g_bKungFuActive[id] = 0
+    g_bAutoCV[id] = 0
 }
 
 // ======================================================================
 // Round Events
 // ======================================================================
 public Ev_NewRound() {
-    g_bRoundActive = false
-    g_bFreezePeriod = true
+    g_bRoundActive = 0
+    g_bFreezePeriod = 1
     g_flRoundStartTime = get_gametime()
-    g_bCTAllSurvived = false
-    g_bTAllSurvived = false
+    g_flLastSurvivalTick = get_gametime()
+    g_bCTAllSurvived = 0
+    g_bTAllSurvived = 0
 
     // Reset team license usage & effects
     for (new t = 0; t < 2; t++) {
@@ -302,28 +302,28 @@ public Ev_NewRound() {
 }
 
 public Ev_RoundEnd() {
-    if (!g_bFreezePeriod && !g_bRoundActive) return
-    g_bRoundActive = false
-    g_bFreezePeriod = false
+    if (!g_bFreezePeriod && !g_bRoundActive) return;
+    g_bRoundActive = 0
+    g_bFreezePeriod = 0
 
-    new ctAlive = CountAlive(CS_TEAM_CT)
-    new tAlive  = CountAlive(CS_TEAM_T)
-    new ctTotal = CountTotal(CS_TEAM_CT)
-    new tTotal  = CountTotal(CS_TEAM_T)
+    new ctAlive = CountAlive(CS_TEAM_CT);
+    new tAlive  = CountAlive(CS_TEAM_T);
+    new ctTotal = CountTotal(CS_TEAM_CT);
+    new tTotal  = CountTotal(CS_TEAM_T);
 
-    g_bCTAllSurvived = (ctAlive == ctTotal && ctTotal > 0)
-    g_bTAllSurvived  = (tAlive  == tTotal  && tTotal  > 0)
+    g_bCTAllSurvived = (ctAlive == ctTotal && ctTotal > 0) ? 1 : 0
+    g_bTAllSurvived  = (tAlive  == tTotal  && tTotal  > 0) ? 1 : 0
 
-    new bool:ctWon = (ctAlive > 0 && tAlive == 0)
+    new ctWon = (ctAlive > 0 && tAlive == 0) ? 1 : 0
 
     if (ctWon) {
         g_iConsecutiveCTLoss = 0
-        GiveTeamMoney(CS_TEAM_CT, 2000)
-        GiveTeamMoney(CS_TEAM_T,  100)
+        GiveTeamMoney(CS_TEAM_CT, 2000);
+        GiveTeamMoney(CS_TEAM_T,  100);
     } else {
         g_iConsecutiveCTLoss++
-        GiveTeamMoney(CS_TEAM_T,  2000)
-        GiveTeamMoney(CS_TEAM_CT, 100)
+        GiveTeamMoney(CS_TEAM_T,  2000);
+        GiveTeamMoney(CS_TEAM_CT, 100);
     }
 
     // ---- License rewards ----
@@ -403,7 +403,6 @@ public Ev_DeathMsg() {
         g_iRoundKills[killer]++
         if (cs_get_user_team(killer) == CS_TEAM_CT) {
             AddMoney(killer, 1000)
-            // License from kills after 3 kills (3rd kill gives license too)
             if (g_iRoundKills[killer] >= 3) {
                 AddLicense(killer, 1)
                 client_print(killer, print_chat, "[许可证] 击杀达标，获得1张许可证！")
@@ -413,15 +412,15 @@ public Ev_DeathMsg() {
 
     // Check auto clairvoyance: 1 CT alive + 3+ T alive
     if (is_user_connected(victim)) {
-        new ctAlive = CountAlive(CS_TEAM_CT)
-        new tAlive  = CountAlive(CS_TEAM_T)
+        new ctAlive = CountAlive(CS_TEAM_CT);
+        new tAlive  = CountAlive(CS_TEAM_T);
         if (ctAlive == 1 && tAlive >= 3) {
             new players[32], num
             get_players(players, num, "ae", "CT")
             if (num == 1) {
                 new lastCT = players[0]
                 if (!g_bAutoCV[lastCT]) {
-                    g_bAutoCV[lastCT] = true
+                    g_bAutoCV[lastCT] = 1
                     client_print(lastCT, print_chat, "[千里眼] 你是最后的希望！千里眼已开启！")
                     new param[2]
                     param[0] = lastCT
@@ -485,24 +484,24 @@ public Ham_TakeDamage_Pre(victim, inflictor, attacker, Float:damage, damagebits)
     if (attacker != victim && cs_get_user_team(attacker) == cs_get_user_team(victim))
         return HAM_SUPERCEDE
 
-    new CsTeams:atkTeam = cs_get_user_team(attacker)
+    new atkTeam = _:cs_get_user_team(attacker)   // FIX: use int not CsTeams: tag
 
     // CT: only knife deals damage
-    if (atkTeam == CS_TEAM_CT) {
+    if (atkTeam == _:CS_TEAM_CT) {
         new weapon = get_user_weapon(attacker)
         if (weapon != CSW_KNIFE)
             return HAM_SUPERCEDE
     }
 
     // T: knife deals no damage
-    if (atkTeam == CS_TEAM_T) {
+    if (atkTeam == _:CS_TEAM_T) {
         new weapon = get_user_weapon(attacker)
         if (weapon == CSW_KNIFE)
             return HAM_SUPERCEDE
     }
 
     // T HE grenade: 0.3x damage
-    if (atkTeam == CS_TEAM_T && inflictor != attacker) {
+    if (atkTeam == _:CS_TEAM_T && inflictor != attacker) {
         new classname[32]
         pev(inflictor, pev_classname, classname, charsmax(classname))
         if (equal(classname, "grenade")) {
@@ -536,12 +535,6 @@ public Ham_TakeDamage_Pre(victim, inflictor, attacker, Float:damage, damagebits)
     return HAM_IGNORED
 }
 
-public Ham_ResetMaxSpeed_Post(id) {
-    if (!is_user_alive(id) || g_bFrozen[id]) return HAM_IGNORED
-    UpdatePlayerSpeed(id)
-    return HAM_IGNORED
-}
-
 public Ham_AddItem_Pre(id, item) {
     if (!is_user_connected(id)) return HAM_IGNORED
     if (cs_get_user_team(id) != CS_TEAM_T) return HAM_IGNORED
@@ -567,8 +560,15 @@ public FM_PreThink(id) {
 
     // Freeze: zero velocity
     if (g_bFrozen[id]) {
-        set_pev(id, pev_velocity, Float:{0.0, 0.0, 0.0})
+        new Float:zero[3]
+        zero[0] = 0.0; zero[1] = 0.0; zero[2] = 0.0
+        set_pev(id, pev_velocity, zero)
+        set_pev(id, pev_maxspeed, 0.0)
+        return FMRES_IGNORED
     }
+
+    // Update speed every frame (replaces Ham_ResetMaxSpeed for AMXX 1.82)
+    UpdatePlayerSpeed(id)
 
     // Superhuman Lv2: no jump fatigue
     if (g_iSuperhumanLv[id] >= 2)
@@ -604,22 +604,23 @@ public FM_VoiceListen(iReceiver, iSender) {
 // Freeze / Unfreeze
 // ======================================================================
 FreezePlayer(id) {
-    g_bFrozen[id] = true
+    g_bFrozen[id] = 1
     set_pev(id, pev_maxspeed, 0.0)
     set_pev(id, pev_gravity, 0.0)
-    set_pev(id, pev_velocity, Float:{0.0, 0.0, 0.0})
+    new Float:zero[3]
+    zero[0] = 0.0; zero[1] = 0.0; zero[2] = 0.0
+    set_pev(id, pev_velocity, zero)
     client_print(id, print_center, "你已被冻结，请等待搜寻者准备完毕！")
 }
 
 public Task_UnfreezeCTs() {
-    g_bFreezePeriod = false
-    g_bRoundActive = true
+    g_bFreezePeriod = 0
+    g_bRoundActive = 1
 
     for (new i = 1; i <= g_iMaxPlayers; i++) {
         if (g_bFrozen[i] && is_user_alive(i)) {
-            g_bFrozen[i] = false
+            g_bFrozen[i] = 0
             set_pev(i, pev_gravity, 1.0)
-            // Heal on unfreeze (mode 2)
             if (g_iSpawnProtect == 2)
                 set_user_health(i, GetMaxHP(i))
             ApplyPlayerGravity(i)
@@ -680,14 +681,13 @@ public HandleMainMenu(id, key) {
                 client_print(id, print_chat, "[游戏] 你已经在游戏中！")
                 return PLUGIN_HANDLED
             }
-            // Random team
             new team = random_num(1, 2)
             cs_set_user_team(id, team == 1 ? CS_TEAM_T : CS_TEAM_CT)
             if (team == 2)
                 cs_set_user_model(id, "urban")
             else
                 cs_set_user_model(id, "terror")
-            ExecuteHamB(Ham_CS_RoundRespawn, id)
+            dllfunc(DLLFunc_Spawn, id)    // FIX: replaced ExecuteHamB for AMXX 1.82 compat
             client_print(id, print_chat, "[游戏] 你已加入 %s 方！", team == 1 ? "T" : "CT")
         }
         case 1: ShowShopMenu(id)
@@ -734,7 +734,7 @@ ShowRules(id) {
 // ======================================================================
 ShowShopMenu(id) {
     new menu[1024], len, keys
-    new team = cs_get_user_team(id)
+    new team = _:cs_get_user_team(id)        // FIX: store as int
     new Float:now = get_gametime()
     new totalMoney = g_iRoundMoney[id] + g_iStoredMoney[id]
 
@@ -762,8 +762,8 @@ ShowShopMenu(id) {
     }
 
     // 3. 闪光弹
-    new flashLimit = (team == CS_TEAM_T) ? 2 : 1
-    new flashCost  = (team == CS_TEAM_T) ? 2000 : 10000
+    new flashLimit = (team == _:CS_TEAM_T) ? 2 : 1
+    new flashCost  = (team == _:CS_TEAM_T) ? 2000 : 10000
     new Float:flElapsed = now - g_flRoundStartTime
     new Float:flFlashCD = g_flFlashCD[id] - now
     if (g_iFlashBought[id] >= flashLimit)
@@ -778,7 +778,7 @@ ShowShopMenu(id) {
     }
 
     // 4. 烟雾弹 (T only)
-    if (team != CS_TEAM_T)
+    if (team != _:CS_TEAM_T)
         len += formatex(menu[len], charsmax(menu)-len, "\d4. 烟雾弹 (仅T) ($3000)^n")
     else if (g_iSmokeBought[id] >= 1)
         len += formatex(menu[len], charsmax(menu)-len, "\d4. 烟雾弹 [上限] ($3000)^n")
@@ -790,7 +790,7 @@ ShowShopMenu(id) {
     }
 
     // 5. 高爆手雷 (T only)
-    if (team != CS_TEAM_T)
+    if (team != _:CS_TEAM_T)
         len += formatex(menu[len], charsmax(menu)-len, "\d5. 高爆手雷 (仅T) ($8000)^n")
     else if (totalMoney < 8000)
         len += formatex(menu[len], charsmax(menu)-len, "\d5. 高爆手雷 \r(金钱不足) \d($8000)^n")
@@ -839,32 +839,32 @@ ShowShopMenu(id) {
 
 public HandleShopMenu(id, key) {
     if (!is_user_alive(id)) return PLUGIN_HANDLED
-    new team = cs_get_user_team(id)
+    new team = _:cs_get_user_team(id)        // FIX: int
     new Float:now = get_gametime()
     new totalMoney = g_iRoundMoney[id] + g_iStoredMoney[id]
 
     switch (key) {
         case 0: { // 补血包
-            if (totalMoney < 3000 || g_flMedkitCD[id] > now) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (totalMoney < 3000 || g_flMedkitCD[id] > now) { ShowShopMenu(id); return PLUGIN_HANDLED ;}
             SpendMoney(id, 3000)
             g_flMedkitCD[id] = now + 30.0
             set_user_health(id, minx(get_user_health(id) + 100, GetMaxHP(id)))
             client_print(id, print_chat, "[商店] 补血包购买成功！")
         }
         case 1: { // 千里眼
-            if (totalMoney < 4000 || g_bClairvoyanceRound[id]) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (totalMoney < 4000 || g_bClairvoyanceRound[id]) { ShowShopMenu(id); return PLUGIN_HANDLED ;}
             SpendMoney(id, 4000)
-            g_bClairvoyanceRound[id] = true
+            g_bClairvoyanceRound[id] = 1
             client_print(id, print_chat, "[商店] 千里眼已开启 (15秒)！")
             new param[2]; param[0] = id; param[1] = 10
             Task_CVBeam(param)
         }
         case 2: { // 闪光弹
-            new flashLimit = (team == CS_TEAM_T) ? 2 : 1
-            new flashCost  = (team == CS_TEAM_T) ? 2000 : 10000
+            new flashLimit = (team == _:CS_TEAM_T) ? 2 : 1
+            new flashCost  = (team == _:CS_TEAM_T) ? 2000 : 10000
             new Float:flElapsed = now - g_flRoundStartTime
-            if (g_iFlashBought[id] >= flashLimit || totalMoney < flashCost) { ShowShopMenu(id); return PLUGIN_HANDLED }
-            if (flElapsed > 10.0 && g_flFlashCD[id] > now) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (g_iFlashBought[id] >= flashLimit || totalMoney < flashCost) { ShowShopMenu(id); return PLUGIN_HANDLED ;}
+            if (flElapsed > 10.0 && g_flFlashCD[id] > now) { ShowShopMenu(id); return PLUGIN_HANDLED ;}
             SpendMoney(id, flashCost)
             g_iFlashBought[id]++
             give_item(id, "weapon_flashbang")
@@ -872,37 +872,37 @@ public HandleShopMenu(id, key) {
             client_print(id, print_chat, "[商店] 闪光弹购买成功！")
         }
         case 3: { // 烟雾弹
-            if (team != CS_TEAM_T || g_iSmokeBought[id] >= 1 || totalMoney < 3000) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (team != _:CS_TEAM_T || g_iSmokeBought[id] >= 1 || totalMoney < 3000) { ShowShopMenu(id); return PLUGIN_HANDLED; }
             SpendMoney(id, 3000)
             g_iSmokeBought[id]++
             give_item(id, "weapon_smokegrenade")
             client_print(id, print_chat, "[商店] 烟雾弹购买成功！")
         }
         case 4: { // HE
-            if (team != CS_TEAM_T || totalMoney < 8000) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (team != _:CS_TEAM_T || totalMoney < 8000) { ShowShopMenu(id); return PLUGIN_HANDLED; }
             SpendMoney(id, 8000)
             give_item(id, "weapon_hegrenade")
             client_print(id, print_chat, "[商店] 高爆手雷购买成功！")
         }
         case 5: { // 轻功
-            if (g_bKungFuActive[id] || totalMoney < 6000) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (g_bKungFuActive[id] || totalMoney < 6000) { ShowShopMenu(id); return PLUGIN_HANDLED; }
             SpendMoney(id, 6000)
-            g_bKungFuActive[id] = true
+            g_bKungFuActive[id] = 1
             ApplyPlayerGravity(id)
             remove_task(TASK_KUNGFU + id)
             set_task(15.0, "Task_KungFuExpire", TASK_KUNGFU + id)
             client_print(id, print_chat, "[商店] 轻功已开启 (15秒)！")
         }
         case 6: { // 摔落减免
-            if (g_bFallShopActive[id] || totalMoney < 7000) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (g_bFallShopActive[id] || totalMoney < 7000) { ShowShopMenu(id); return PLUGIN_HANDLED; }
             SpendMoney(id, 7000)
-            g_bFallShopActive[id] = true
+            g_bFallShopActive[id] = 1
             remove_task(TASK_FALLSHOP + id)
             set_task(30.0, "Task_FallShopExpire", TASK_FALLSHOP + id)
             client_print(id, print_chat, "[商店] 摔落减免已开启 (30秒)！")
         }
         case 7: { // 出售许可证
-            if (g_iLicenses[id] < 1) { ShowShopMenu(id); return PLUGIN_HANDLED }
+            if (g_iLicenses[id] < 1) { ShowShopMenu(id); return PLUGIN_HANDLED; }
             g_iLicenses[id]--
             AddMoney(id, 1000)
             client_print(id, print_chat, "[商店] 出售1张许可证，获得 $1000！")
@@ -922,45 +922,50 @@ public HandleShopMenu(id, key) {
 // License Menu - Main
 // ======================================================================
 ShowLicMainMenu(id) {
-    g_bInLicMenu[id] = true
+    g_bInLicMenu[id] = 1
     g_iLicPage[id] = LICPAGE_MAIN
 
     new menu[512], len, keys
     new team = getTeamIdx(id)
     new limitStr[16]
-    if (g_iLicenseLimit < 0) formatex(limitStr, charsmax(limitStr), "无限")
-    else formatex(limitStr, charsmax(limitStr), "%d", g_iLicenseLimit)
+    if (g_iLicenseLimit < 0)
+        formatex(limitStr, charsmax(limitStr), "unlimited")
+    else
+        formatex(limitStr, charsmax(limitStr), "%d", g_iLicenseLimit)
 
-    len = formatex(menu[len], charsmax(menu)-len, "\y许可证商店 \r当前团队(%d/%s)^n^n",
+    len = formatex(menu[len], charsmax(menu)-len, "\yLicense Shop \rTeam(%d/%s)^n^n",
         g_iTeamLicUsed[team], limitStr)
-    len += formatex(menu[len], charsmax(menu)-len, "\w1. 额外移速 (全队)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w1. Extra Speed (Team)^n")
     keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "\w2. 最大血量 (全队)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w2. Max HP (Team)^n")
     keys |= MENU_KEY_2
 
     if (team == TEAM_T)
-        len += formatex(menu[len], charsmax(menu)-len, "\w3. 阵营道具: 闪光弹 (全队)^n")
+        len += formatex(menu[len], charsmax(menu)-len, "\w3. Faction: Flash (Team)^n")
     else
-        len += formatex(menu[len], charsmax(menu)-len, "\w3. 阵营道具: 轻刀强化 (全队)^n")
+        len += formatex(menu[len], charsmax(menu)-len, "\w3. Faction: Light Knife (Team)^n")
     keys |= MENU_KEY_3
 
-    len += formatex(menu[len], charsmax(menu)-len, "\w4. 坠落伤害减免 (全队)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w4. Fall Resist (Team)^n")
     keys |= MENU_KEY_4
-    len += formatex(menu[len], charsmax(menu)-len, "\w5. 修改敌方AA (全队)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w5. Debuff Enemy AA (Team)^n")
     keys |= MENU_KEY_5
-    len += formatex(menu[len], charsmax(menu)-len, "\w6. 超人 (仅自身)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w6. Superhuman (Self)^n")
     keys |= MENU_KEY_6
-    len += formatex(menu[len], charsmax(menu)-len, "\w7. 轻功 (全队)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w7. Low Gravity (Team)^n")
     keys |= MENU_KEY_7
-    len += formatex(menu[len], charsmax(menu)-len, "\d8. (预留)^n")
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r0. \w退出")
+    len += formatex(menu[len], charsmax(menu)-len, "\d8. (Reserved)^n")
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r0. \wExit")
     keys |= MENU_KEY_0
 
     show_menu(id, keys, menu, -1, "hns_licmain")
 }
 
 public HandleLicMain(id, key) {
-    if (key == 9) { g_bInLicMenu[id] = false; return PLUGIN_HANDLED }
+    if (key == 9) {
+        g_bInLicMenu[id] = 0
+        return PLUGIN_HANDLED
+    }
     if (key >= 0 && key <= 7) {
         g_iLicPage[id] = key + 1
         ShowLicSubPage(id, key + 1)
@@ -972,240 +977,247 @@ public HandleLicMain(id, key) {
 // License Menu - Sub Pages
 // ======================================================================
 ShowLicSubPage(id, page) {
-    g_bInLicMenu[id] = true
+    g_bInLicMenu[id] = 1
     g_iLicPage[id] = page
 
     new menu[512], len, keys
     new team = getTeamIdx(id)
     new limitStr[16]
-    if (g_iLicenseLimit < 0) formatex(limitStr, charsmax(limitStr), "无限")
-    else formatex(limitStr, charsmax(limitStr), "%d", g_iLicenseLimit)
+    if (g_iLicenseLimit < 0)
+        formatex(limitStr, charsmax(limitStr), "unlimited")
+    else
+        formatex(limitStr, charsmax(limitStr), "%d", g_iLicenseLimit)
 
     switch (page) {
         case LICPAGE_SPEED: {
-            len = formatex(menu[len], charsmax(menu)-len, "\y额外移速 (全队) \r(%d/%s)^n^n",
+            len = formatex(menu[len], charsmax(menu)-len, "\yExtra Speed (Team) \r(%d/%s)^n^n",
                 g_iTeamLicUsed[team], limitStr)
-            // Lv1: +5 speed, 5 licenses
             if (g_iTeamSpeedLv[team] >= 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. +5移速(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. +5 Speed (Active)^n")
             else if (!CanTeamBuy(team, 5) || g_iLicenses[id] < 5)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. +5移速 \r5张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. +5 Speed \r5 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w1. +5移速 \y5张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w1. +5 Speed \y5 Lic^n")
                 keys |= MENU_KEY_1
             }
-            // Lv2: +10 speed, 12 licenses
             if (g_iTeamSpeedLv[team] >= 2)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. +10移速(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. +10 Speed (Active)^n")
             else if (!CanTeamBuy(team, 12) || g_iLicenses[id] < 12)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. +10移速 \r12张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. +10 Speed \r12 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w2. +10移速 \y12张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w2. +10 Speed \y12 Lic^n")
                 keys |= MENU_KEY_2
             }
         }
         case LICPAGE_MAXHP: {
-            len = formatex(menu[len], charsmax(menu)-len, "\y最大血量 (全队) \r(%d/%s)^n^n",
+            len = formatex(menu[len], charsmax(menu)-len, "\yMax HP (Team) \r(%d/%s)^n^n",
                 g_iTeamLicUsed[team], limitStr)
             if (g_iTeamMaxHPLv[team] >= 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP上限130(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP 130 (Active)^n")
             else if (!CanTeamBuy(team, 5) || g_iLicenses[id] < 5)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP上限130 \r5张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP 130 \r5 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w1. HP上限130 \y5张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w1. HP 130 \y5 Lic^n")
                 keys |= MENU_KEY_1
             }
             if (g_iTeamMaxHPLv[team] >= 2)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP上限200(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP 200 (Active)^n")
             else if (!CanTeamBuy(team, 12) || g_iLicenses[id] < 12)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP上限200 \r12张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP 200 \r12 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w2. HP上限200 \y12张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w2. HP 200 \y12 Lic^n")
                 keys |= MENU_KEY_2
             }
         }
         case LICPAGE_ITEMS: {
             if (team == TEAM_T) {
-                len = formatex(menu[len], charsmax(menu)-len, "\y闪光弹 (全队) \r(%d/%s)^n^n",
+                len = formatex(menu[len], charsmax(menu)-len, "\yFlash (Team) \r(%d/%s)^n^n",
                     g_iTeamLicUsed[team], limitStr)
                 if (g_iTeamFlashLv[team] >= 1)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d1. 获得1个闪光弹(已生效)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d1. x1 Flash (Active)^n")
                 else if (!CanTeamBuy(team, 5) || g_iLicenses[id] < 5)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d1. 获得1个闪光弹 \r5张(不可用)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d1. x1 Flash \r5 Lic^n")
                 else {
-                    len += formatex(menu[len], charsmax(menu)-len, "\w1. 获得1个闪光弹 \y5张^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\w1. x1 Flash \y5 Lic^n")
                     keys |= MENU_KEY_1
                 }
                 if (g_iTeamFlashLv[team] >= 2)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d2. 获得2个闪光弹(已生效)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d2. x2 Flash (Active)^n")
                 else if (!CanTeamBuy(team, 12) || g_iLicenses[id] < 12)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d2. 获得2个闪光弹 \r12张(不可用)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d2. x2 Flash \r12 Lic^n")
                 else {
-                    len += formatex(menu[len], charsmax(menu)-len, "\w2. 获得2个闪光弹 \y12张^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\w2. x2 Flash \y12 Lic^n")
                     keys |= MENU_KEY_2
                 }
             } else {
-                // CT: light knife
-                len = formatex(menu[len], charsmax(menu)-len, "\y轻刀强化 (全队) \r(%d/%s)^n^n",
+                len = formatex(menu[len], charsmax(menu)-len, "\yLight Knife (Team) \r(%d/%s)^n^n",
                     g_iTeamLicUsed[team], limitStr)
                 if (g_iTeamLightKnifeLv[team] >= 1)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d1. 解锁轻刀(已生效)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d1. Unlock Light Knife (Active)^n")
                 else if (!CanTeamBuy(team, 5) || g_iLicenses[id] < 5)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d1. 解锁轻刀 \r5张(不可用)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d1. Unlock Light Knife \r5 Lic^n")
                 else {
-                    len += formatex(menu[len], charsmax(menu)-len, "\w1. 解锁轻刀 \y5张^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\w1. Unlock Light Knife \y5 Lic^n")
                     keys |= MENU_KEY_1
                 }
                 if (g_iTeamLightKnifeLv[team] >= 2)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d2. 轻刀+攻速x2(已生效)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d2. Light Knife +2x Speed (Active)^n")
                 else if (!CanTeamBuy(team, 12) || g_iLicenses[id] < 12)
-                    len += formatex(menu[len], charsmax(menu)-len, "\d2. 轻刀+攻速x2 \r12张(不可用)^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\d2. Light Knife +2x Speed \r12 Lic^n")
                 else {
-                    len += formatex(menu[len], charsmax(menu)-len, "\w2. 轻刀+攻速x2 \y12张^n")
+                    len += formatex(menu[len], charsmax(menu)-len, "\w2. Light Knife +2x Speed \y12 Lic^n")
                     keys |= MENU_KEY_2
                 }
             }
         }
         case LICPAGE_FALL: {
-            len = formatex(menu[len], charsmax(menu)-len, "\y坠落伤害减免 (全队) \r(%d/%s)^n^n",
+            len = formatex(menu[len], charsmax(menu)-len, "\yFall Resist (Team) \r(%d/%s)^n^n",
                 g_iTeamLicUsed[team], limitStr)
             if (g_iTeamFallLv[team] >= 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. 非致死最高5/致死40(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. Non-lethal max5/Lethal40 (Active)^n")
             else if (!CanTeamBuy(team, 8) || g_iLicenses[id] < 8)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. 非致死最高5/致死40 \r8张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. Non-lethal max5/Lethal40 \r8 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w1. 非致死最高5/致死40 \y8张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w1. Non-lethal max5/Lethal40 \y8 Lic^n")
                 keys |= MENU_KEY_1
             }
             if (g_iTeamFallLv[team] >= 2)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 免疫非致死/致死12(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Immune Non-lethal/Lethal12 (Active)^n")
             else if (!CanTeamBuy(team, 15) || g_iLicenses[id] < 15)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 免疫非致死/致死12 \r15张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Immune Non-lethal/Lethal12 \r15 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w2. 免疫非致死/致死12 \y15张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w2. Immune Non-lethal/Lethal12 \y15 Lic^n")
                 keys |= MENU_KEY_2
             }
         }
         case LICPAGE_ENEMYAA: {
-            len = formatex(menu[len], charsmax(menu)-len, "\y修改敌方AA (全队) \r(%d/%s)^n^n",
+            len = formatex(menu[len], charsmax(menu)-len, "\yEnemy AA (Team) \r(%d/%s)^n^n",
                 g_iTeamLicUsed[team], limitStr)
             if (g_iTeamEnemyAALv[team] >= 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. 敌方AA=30(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. Enemy AA=30 (Active)^n")
             else if (!CanTeamBuy(team, 5) || g_iLicenses[id] < 5)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. 敌方AA=30 \r5张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. Enemy AA=30 \r5 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w1. 敌方AA=30 \y5张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w1. Enemy AA=30 \y5 Lic^n")
                 keys |= MENU_KEY_1
             }
             if (g_iTeamEnemyAALv[team] >= 2)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 敌方AA=10+免疫坠落(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Enemy AA=10+Fall Immune (Active)^n")
             else if (!CanTeamBuy(team, 15) || g_iLicenses[id] < 15)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 敌方AA=10+免疫坠落 \r15张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Enemy AA=10+Fall Immune \r15 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w2. 敌方AA=10+免疫坠落 \y15张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w2. Enemy AA=10+Fall Immune \y15 Lic^n")
                 keys |= MENU_KEY_2
             }
         }
         case LICPAGE_SUPER: {
-            len = formatex(menu[len], charsmax(menu)-len, "\y超人 (仅自身) \r(%d/%s)^n^n",
+            len = formatex(menu[len], charsmax(menu)-len, "\ySuperhuman (Self) \r(%d/%s)^n^n",
                 g_iTeamLicUsed[team], limitStr)
             if (g_iSuperhumanLv[id] >= 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP200+速+10+重力0.875(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP200+Spd+10+Grav0.875 (Active)^n")
             else if (!CanTeamBuy(team, 10) || g_iLicenses[id] < 10)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP200+速+10+重力0.875 \r10张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. HP200+Spd+10+Grav0.875 \r10 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w1. HP200+速+10+重力0.875 \y10张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w1. HP200+Spd+10+Grav0.875 \y10 Lic^n")
                 keys |= MENU_KEY_1
             }
             if (g_iSuperhumanLv[id] >= 2)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP300+速+15+重力0.75+无疲劳(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP300+Spd+15+Grav0.75+NoFatigue (Active)^n")
             else if (g_iSuperhumanLv[id] < 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 需先购买等级1^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Need Lv1 first^n")
             else if (!CanTeamBuy(team, 15) || g_iLicenses[id] < 15)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP300+速+15+重力0.75+无疲劳 \r15张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. HP300+Spd+15+Grav0.75+NoFatigue \r15 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w2. HP300+速+15+重力0.75+无疲劳 \y15张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w2. HP300+Spd+15+Grav0.75+NoFatigue \y15 Lic^n")
                 keys |= MENU_KEY_2
             }
         }
         case LICPAGE_KUNGFU: {
-            len = formatex(menu[len], charsmax(menu)-len, "\y轻功 (全队) \r(%d/%s)^n^n",
+            len = formatex(menu[len], charsmax(menu)-len, "\yLow Gravity (Team) \r(%d/%s)^n^n",
                 g_iTeamLicUsed[team], limitStr)
             if (g_iTeamGravityLv[team] >= 1)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. 重力0.875(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. Gravity 0.875 (Active)^n")
             else if (!CanTeamBuy(team, 8) || g_iLicenses[id] < 8)
-                len += formatex(menu[len], charsmax(menu)-len, "\d1. 重力0.875 \r8张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d1. Gravity 0.875 \r8 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w1. 重力0.875 \y8张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w1. Gravity 0.875 \y8 Lic^n")
                 keys |= MENU_KEY_1
             }
             if (g_iTeamGravityLv[team] >= 2)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 重力0.75(已生效)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Gravity 0.75 (Active)^n")
             else if (!CanTeamBuy(team, 15) || g_iLicenses[id] < 15)
-                len += formatex(menu[len], charsmax(menu)-len, "\d2. 重力0.75 \r15张(不可用)^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\d2. Gravity 0.75 \r15 Lic^n")
             else {
-                len += formatex(menu[len], charsmax(menu)-len, "\w2. 重力0.75 \y15张^n")
+                len += formatex(menu[len], charsmax(menu)-len, "\w2. Gravity 0.75 \y15 Lic^n")
                 keys |= MENU_KEY_2
             }
         }
     }
 
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \w返回^n")
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \wBack^n")
     keys |= MENU_KEY_9
-    len += formatex(menu[len], charsmax(menu)-len, "\r0. \w退出")
+    len += formatex(menu[len], charsmax(menu)-len, "\r0. \wExit")
     keys |= MENU_KEY_0
 
     show_menu(id, keys, menu, -1, "hns_licsub")
 }
 
 public HandleLicSub(id, key) {
-    if (key == 9) { ShowLicMainMenu(id); return PLUGIN_HANDLED } // Return
-    if (key == 9 - 1 + 1) { g_bInLicMenu[id] = false; return PLUGIN_HANDLED } // 0=exit
+    if (key == 9) {
+        ShowLicMainMenu(id)
+        return PLUGIN_HANDLED
+    }
+    if (key == 8) {                            // FIX: key 0 (position 9) is exit
+        g_bInLicMenu[id] = 0
+        return PLUGIN_HANDLED
+    }
 
     new team = getTeamIdx(id)
     new page = g_iLicPage[id]
     new cost = 0
-    new bool:success = false
+    new success = 0                            // FIX: use int, not bool
 
     switch (page) {
         case LICPAGE_SPEED: {
-            if (key == 0) { // Lv1: +5, 5 lic
+            if (key == 0) {
                 cost = 5
                 if (g_iTeamSpeedLv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
                     g_iTeamSpeedLv[team] = 1
-                    success = true
+                    success = 1
                 }
-            } else if (key == 1) { // Lv2: +10, 12 lic
+            } else if (key == 1) {
                 cost = 12
                 if (g_iTeamSpeedLv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
                     g_iTeamSpeedLv[team] = 2
-                    success = true
+                    success = 1
                 }
             }
             if (success) {
                 g_iTeamLicUsed[team] += cost
                 g_iLicenses[id] -= cost
                 RefreshTeamSpeed(team)
-                AnnounceTeamEffect(team, "额外移速已生效！")
+                AnnounceTeamEffect(team, "Extra Speed active!")
             }
         }
         case LICPAGE_MAXHP: {
             if (key == 0) {
                 cost = 5
                 if (g_iTeamMaxHPLv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamMaxHPLv[team] = 1; success = true
+                    g_iTeamMaxHPLv[team] = 1
+                    success = 1
                 }
             } else if (key == 1) {
                 cost = 12
                 if (g_iTeamMaxHPLv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamMaxHPLv[team] = 2; success = true
+                    g_iTeamMaxHPLv[team] = 2
+                    success = 1
                 }
             }
             if (success) {
                 g_iTeamLicUsed[team] += cost
                 g_iLicenses[id] -= cost
                 RefreshTeamHP(team)
-                AnnounceTeamEffect(team, "最大血量提升已生效！")
+                AnnounceTeamEffect(team, "Max HP upgraded!")
             }
         }
         case LICPAGE_ITEMS: {
@@ -1213,38 +1225,41 @@ public HandleLicSub(id, key) {
                 if (key == 0) {
                     cost = 5
                     if (g_iTeamFlashLv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                        g_iTeamFlashLv[team] = 1; success = true
+                        g_iTeamFlashLv[team] = 1
+                        success = 1
                     }
                 } else if (key == 1) {
                     cost = 12
                     if (g_iTeamFlashLv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                        g_iTeamFlashLv[team] = 2; success = true
+                        g_iTeamFlashLv[team] = 2
+                        success = 1
                     }
                 }
                 if (success) {
                     g_iTeamLicUsed[team] += cost
                     g_iLicenses[id] -= cost
                     new count = (g_iTeamFlashLv[team] >= 2) ? 2 : 1
-                    GiveTeamFlash(CS_TEAM_T, count)
-                    AnnounceTeamEffect(CS_TEAM_T, "闪光弹已发放！")
+                    GiveTeamFlash(count)
+                    AnnounceTeamEffect(team, "Flash delivered!")
                 }
             } else {
-                // CT light knife
                 if (key == 0) {
                     cost = 5
                     if (g_iTeamLightKnifeLv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                        g_iTeamLightKnifeLv[team] = 1; success = true
+                        g_iTeamLightKnifeLv[team] = 1
+                        success = 1
                     }
                 } else if (key == 1) {
                     cost = 12
                     if (g_iTeamLightKnifeLv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                        g_iTeamLightKnifeLv[team] = 2; success = true
+                        g_iTeamLightKnifeLv[team] = 2
+                        success = 1
                     }
                 }
                 if (success) {
                     g_iTeamLicUsed[team] += cost
                     g_iLicenses[id] -= cost
-                    AnnounceTeamEffect(CS_TEAM_CT, "轻刀强化已生效！")
+                    AnnounceTeamEffect(team, "Light Knife active!")
                 }
             }
         }
@@ -1252,80 +1267,88 @@ public HandleLicSub(id, key) {
             if (key == 0) {
                 cost = 8
                 if (g_iTeamFallLv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamFallLv[team] = 1; success = true
+                    g_iTeamFallLv[team] = 1
+                    success = 1
                 }
             } else if (key == 1) {
                 cost = 15
                 if (g_iTeamFallLv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamFallLv[team] = 2; success = true
+                    g_iTeamFallLv[team] = 2
+                    success = 1
                 }
             }
             if (success) {
                 g_iTeamLicUsed[team] += cost
                 g_iLicenses[id] -= cost
-                AnnounceTeamEffect(team, "坠落伤害减免已生效！")
+                AnnounceTeamEffect(team, "Fall Resist active!")
             }
         }
         case LICPAGE_ENEMYAA: {
             if (key == 0) {
                 cost = 5
                 if (g_iTeamEnemyAALv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamEnemyAALv[team] = 1; success = true
+                    g_iTeamEnemyAALv[team] = 1
+                    success = 1
                 }
             } else if (key == 1) {
                 cost = 15
                 if (g_iTeamEnemyAALv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamEnemyAALv[team] = 2; success = true
+                    g_iTeamEnemyAALv[team] = 2
+                    success = 1
                 }
             }
             if (success) {
                 g_iTeamLicUsed[team] += cost
                 g_iLicenses[id] -= cost
-                AnnounceTeamEffect(team, "敌方AA已削弱！")
+                AnnounceTeamEffect(team, "Enemy AA debuffed!")
             }
         }
         case LICPAGE_SUPER: {
             if (key == 0) {
                 cost = 10
                 if (g_iSuperhumanLv[id] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iSuperhumanLv[id] = 1; success = true
+                    g_iSuperhumanLv[id] = 1
+                    success = 1
                 }
             } else if (key == 1) {
                 cost = 15
                 if (g_iSuperhumanLv[id] == 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iSuperhumanLv[id] = 2; success = true
+                    g_iSuperhumanLv[id] = 2
+                    success = 1
                 }
             }
             if (success) {
                 g_iTeamLicUsed[team] += cost
                 g_iLicenses[id] -= cost
                 ApplySuperhuman(id)
-                client_print(id, print_chat, "[许可证] 超人能力已激活！")
+                client_print(id, print_chat, "[License] Superhuman activated!")
             }
         }
         case LICPAGE_KUNGFU: {
             if (key == 0) {
                 cost = 8
                 if (g_iTeamGravityLv[team] < 1 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamGravityLv[team] = 1; success = true
+                    g_iTeamGravityLv[team] = 1
+                    success = 1
                 }
             } else if (key == 1) {
                 cost = 15
                 if (g_iTeamGravityLv[team] < 2 && CanTeamBuy(team, cost) && g_iLicenses[id] >= cost) {
-                    g_iTeamGravityLv[team] = 2; success = true
+                    g_iTeamGravityLv[team] = 2
+                    success = 1
                 }
             }
             if (success) {
                 g_iTeamLicUsed[team] += cost
                 g_iLicenses[id] -= cost
                 RefreshTeamGravity(team)
-                AnnounceTeamEffect(team, "轻功已生效！")
+                AnnounceTeamEffect(team, "Low Gravity active!")
             }
         }
     }
 
     if (!success && cost > 0) {
-        client_print(id, print_chat, "[许可证] 购买失败，条件不满足或许可证不足！")
+        client_print(id, print_chat, "[License] Purchase failed!")
     }
 
     SavePlayerData(id)
@@ -1338,15 +1361,15 @@ public HandleLicSub(id, key) {
 // License Helper Functions
 // ======================================================================
 CanTeamBuy(team, cost) {
-    if (g_iLicenseLimit < 0) return true           // unlimited
-    if (g_iLicenseLimit == 0) return false           // blocked
-    return (g_iTeamLicUsed[team] + cost <= g_iLicenseLimit)
+    if (g_iLicenseLimit < 0) return 1            // unlimited
+    if (g_iLicenseLimit == 0) return 0           // blocked
+    return (g_iTeamLicUsed[team] + cost <= g_iLicenseLimit) ? 1 : 0  // FIX: return int not bool
 }
 
-AnnounceTeamEffect(CsTeams:team, const msg[]) {
+AnnounceTeamEffect(team, const msg[]) {        // FIX: removed CsTeams: tag
     for (new i = 1; i <= g_iMaxPlayers; i++) {
-        if (is_user_connected(i) && cs_get_user_team(i) == team)
-            client_print(i, print_chat, "[许可证] %s", msg)
+        if (is_user_connected(i) && getTeamIdx(i) == team)
+            client_print(i, print_chat, "[License] %s", msg)
     }
 }
 
@@ -1361,9 +1384,9 @@ RefreshAllLicMenus() {
     }
 }
 
-GiveTeamFlash(CsTeams:team, count) {
+GiveTeamFlash(count) {                         // FIX: removed CsTeams: tag
     for (new i = 1; i <= g_iMaxPlayers; i++) {
-        if (is_user_alive(i) && cs_get_user_team(i) == team) {
+        if (is_user_alive(i) && cs_get_user_team(i) == CS_TEAM_T) {
             for (new c = 0; c < count; c++)
                 give_item(i, "weapon_flashbang")
         }
@@ -1376,18 +1399,18 @@ GiveTeamFlash(CsTeams:team, count) {
 ShowAdminMenu(id) {
     new menu[512], len, keys
 
-    len = formatex(menu[len], charsmax(menu)-len, "\y管理员菜单^n^n")
-    len += formatex(menu[len], charsmax(menu)-len, "\w1. 设置回合时间 \d(当前: %ds)^n", get_cvar_num("mp_roundtime") * 60)
+    len = formatex(menu[len], charsmax(menu)-len, "\yAdmin Menu^n^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w1. Set Round Time \d(Current: %ds)^n", get_cvar_num("mp_roundtime") * 60)
     keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "\w2. 设置冻结时间 \d(当前: %ds)^n", g_iFreezeTime)
+    len += formatex(menu[len], charsmax(menu)-len, "\w2. Set Freeze Time \d(Current: %ds)^n", g_iFreezeTime)
     keys |= MENU_KEY_2
-    len += formatex(menu[len], charsmax(menu)-len, "\w3. 设置实体碰撞^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w3. Collision Mode^n")
     keys |= MENU_KEY_3
-    len += formatex(menu[len], charsmax(menu)-len, "\w4. 设置复活保护^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w4. Spawn Protection^n")
     keys |= MENU_KEY_4
-    len += formatex(menu[len], charsmax(menu)-len, "\w5. 许可证团队上限^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w5. License Team Limit^n")
     keys |= MENU_KEY_5
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r0. \w退出")
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r0. \wExit")
     keys |= MENU_KEY_0
 
     show_menu(id, keys, menu, -1, "hns_admin")
@@ -1406,23 +1429,30 @@ public HandleAdminMenu(id, key) {
 
 ShowAdmRoundTime(id) {
     new menu[512], len, keys
-    len = formatex(menu[len], charsmax(menu)-len, "\y设置回合时间^n^n")
-    len += formatex(menu[len], charsmax(menu)-len, "\w1. 3分钟^n"); keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "\w2. 5分钟^n"); keys |= MENU_KEY_2
-    len += formatex(menu[len], charsmax(menu)-len, "\w3. 8分钟^n"); keys |= MENU_KEY_3
-    len += formatex(menu[len], charsmax(menu)-len, "\w4. 10分钟^n"); keys |= MENU_KEY_4
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \w返回^n"); keys |= MENU_KEY_9
-    len += formatex(menu[len], charsmax(menu)-len, "\r0. \w退出"); keys |= MENU_KEY_0
+    len = formatex(menu[len], charsmax(menu)-len, "\yRound Time^n^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w1. 3 min^n")
+    keys |= MENU_KEY_1
+    len += formatex(menu[len], charsmax(menu)-len, "\w2. 5 min^n")
+    keys |= MENU_KEY_2
+    len += formatex(menu[len], charsmax(menu)-len, "\w3. 8 min^n")
+    keys |= MENU_KEY_3
+    len += formatex(menu[len], charsmax(menu)-len, "\w4. 10 min^n")
+    keys |= MENU_KEY_4
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \wBack^n")
+    keys |= MENU_KEY_9
+    len += formatex(menu[len], charsmax(menu)-len, "\r0. \wExit")
+    keys |= MENU_KEY_0
     show_menu(id, keys, menu, -1, "hns_adm_rtime")
 }
 
 public HandleAdmRoundTime(id, key) {
-    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED }
+    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED; }
     if (key == 8) return PLUGIN_HANDLED
-    new times[] = {3, 5, 8, 10}
+    new times[4]
+    times[0] = 3; times[1] = 5; times[2] = 8; times[3] = 10   // FIX: avoid initializer list
     if (key >= 0 && key <= 3) {
         server_cmd("mp_roundtime %d", times[key])
-        client_print(id, print_console, "[Admin] 回合时间设为 %d 分钟 (实际+%ds冻结)", times[key], g_iFreezeTime)
+        client_print(id, print_console, "[Admin] Round time: %d min (+%ds freeze)", times[key], g_iFreezeTime)
     }
     ShowAdmRoundTime(id)
     return PLUGIN_HANDLED
@@ -1430,25 +1460,33 @@ public HandleAdmRoundTime(id, key) {
 
 ShowAdmFreeze(id) {
     new menu[512], len, keys
-    len = formatex(menu[len], charsmax(menu)-len, "\y设置冻结时间^n^n")
-    len += formatex(menu[len], charsmax(menu)-len, "\w1. 无冻结^n"); keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "\w2. 5秒^n");   keys |= MENU_KEY_2
-    len += formatex(menu[len], charsmax(menu)-len, "\w3. 10秒^n");  keys |= MENU_KEY_3
-    len += formatex(menu[len], charsmax(menu)-len, "\w4. 30秒^n");  keys |= MENU_KEY_4
-    len += formatex(menu[len], charsmax(menu)-len, "\w5. 自定义^n"); keys |= MENU_KEY_5
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \w返回^n"); keys |= MENU_KEY_9
-    len += formatex(menu[len], charsmax(menu)-len, "\r0. \w退出"); keys |= MENU_KEY_0
+    len = formatex(menu[len], charsmax(menu)-len, "\yFreeze Time^n^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w1. No freeze^n")
+    keys |= MENU_KEY_1
+    len += formatex(menu[len], charsmax(menu)-len, "\w2. 5 sec^n")
+    keys |= MENU_KEY_2
+    len += formatex(menu[len], charsmax(menu)-len, "\w3. 10 sec^n")
+    keys |= MENU_KEY_3
+    len += formatex(menu[len], charsmax(menu)-len, "\w4. 30 sec^n")
+    keys |= MENU_KEY_4
+    len += formatex(menu[len], charsmax(menu)-len, "\w5. Custom^n")
+    keys |= MENU_KEY_5
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \wBack^n")
+    keys |= MENU_KEY_9
+    len += formatex(menu[len], charsmax(menu)-len, "\r0. \wExit")
+    keys |= MENU_KEY_0
     show_menu(id, keys, menu, -1, "hns_adm_freeze")
 }
 
 public HandleAdmFreeze(id, key) {
-    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED }
+    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED ;}
     if (key == 8) return PLUGIN_HANDLED
-    new times[] = {0, 5, 10, 30}
+    new times[4]
+    times[0] = 0; times[1] = 5; times[2] = 10; times[3] = 30  // FIX: avoid initializer list
     if (key >= 0 && key <= 3) {
         g_iFreezeTime = times[key]
         set_cvar_num("hns_freezetime", times[key])
-        client_print(id, print_console, "[Admin] 冻结时间设为 %d 秒", times[key])
+        client_print(id, print_console, "[Admin] Freeze time: %d sec", times[key])
     } else if (key == 4) {
         client_cmd(id, "messagemode hns_freezetime")
     }
@@ -1458,30 +1496,38 @@ public HandleAdmFreeze(id, key) {
 
 public Cmd_SetFreezeTime(id, level, cid) {
     if (!cmd_access(id, level, cid, 2)) return PLUGIN_HANDLED
-    new arg[16]; read_argv(1, arg, charsmax(arg))
+    new arg[16]
+    read_argv(1, arg, charsmax(arg))
     new val = str_to_num(arg)
     if (val < 0) val = 0
     if (val > 120) val = 120
     g_iFreezeTime = val
     set_cvar_num("hns_freezetime", val)
-    client_print(id, print_console, "[Admin] 冻结时间设为 %d 秒", val)
+    client_print(id, print_console, "[Admin] Freeze time: %d sec", val)
     return PLUGIN_HANDLED
 }
 
 ShowAdmCollision(id) {
     new menu[512], len, keys
-    len = formatex(menu[len], charsmax(menu)-len, "\y设置实体碰撞^n^n")
-    len += formatex(menu[len], charsmax(menu)-len, "%s1. 仅队友无碰撞^n", g_iCollisionMode == 1 ? "\r" : "\w")
+    len = formatex(menu[len], charsmax(menu)-len, "\yCollision Mode^n^n")
+    if (g_iCollisionMode == 1) {
+        len += formatex(menu[len], charsmax(menu)-len, "\r1. Teammate no collision^n")
+        len += formatex(menu[len], charsmax(menu)-len, "\w2. All players collide^n")
+    } else {
+        len += formatex(menu[len], charsmax(menu)-len, "\w1. Teammate no collision^n")
+        len += formatex(menu[len], charsmax(menu)-len, "\r2. All players collide^n")
+    }
     keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "%s2. 所有玩家开启碰撞^n", g_iCollisionMode == 2 ? "\r" : "\w")
     keys |= MENU_KEY_2
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \w返回^n"); keys |= MENU_KEY_9
-    len += formatex(menu[len], charsmax(menu)-len, "\r0. \w退出"); keys |= MENU_KEY_0
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \wBack^n")
+    keys |= MENU_KEY_9
+    len += formatex(menu[len], charsmax(menu)-len, "\r0. \wExit")
+    keys |= MENU_KEY_0
     show_menu(id, keys, menu, -1, "hns_adm_coll")
 }
 
 public HandleAdmCollision(id, key) {
-    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED }
+    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED; }
     if (key == 8) return PLUGIN_HANDLED
     if (key == 0) g_iCollisionMode = 1
     else if (key == 1) g_iCollisionMode = 2
@@ -1491,17 +1537,22 @@ public HandleAdmCollision(id, key) {
 
 ShowAdmProtect(id) {
     new menu[512], len, keys
-    len = formatex(menu[len], charsmax(menu)-len, "\y设置复活保护^n^n")
-    len += formatex(menu[len], charsmax(menu)-len, "\w1. 有保护^n"); keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "\w2. 无保护+解冻回满血^n"); keys |= MENU_KEY_2
-    len += formatex(menu[len], charsmax(menu)-len, "\w3. 无保护^n"); keys |= MENU_KEY_3
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \w返回^n"); keys |= MENU_KEY_9
-    len += formatex(menu[len], charsmax(menu)-len, "\r0. \w退出"); keys |= MENU_KEY_0
+    len = formatex(menu[len], charsmax(menu)-len, "\ySpawn Protection^n^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w1. Protected^n")
+    keys |= MENU_KEY_1
+    len += formatex(menu[len], charsmax(menu)-len, "\w2. No protect + heal on unfreeze^n")
+    keys |= MENU_KEY_2
+    len += formatex(menu[len], charsmax(menu)-len, "\w3. No protection^n")
+    keys |= MENU_KEY_3
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \wBack^n")
+    keys |= MENU_KEY_9
+    len += formatex(menu[len], charsmax(menu)-len, "\r0. \wExit")
+    keys |= MENU_KEY_0
     show_menu(id, keys, menu, -1, "hns_adm_prot")
 }
 
 public HandleAdmProtect(id, key) {
-    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED }
+    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED;}
     if (key == 8) return PLUGIN_HANDLED
     if (key >= 0 && key <= 2) g_iSpawnProtect = key + 1
     ShowAdmProtect(id)
@@ -1510,25 +1561,33 @@ public HandleAdmProtect(id, key) {
 
 ShowAdmLimit(id) {
     new menu[512], len, keys
-    len = formatex(menu[len], charsmax(menu)-len, "\y回合许可证上限^n^n")
-    len += formatex(menu[len], charsmax(menu)-len, "\w1. 20张^n"); keys |= MENU_KEY_1
-    len += formatex(menu[len], charsmax(menu)-len, "\w2. 30张^n"); keys |= MENU_KEY_2
-    len += formatex(menu[len], charsmax(menu)-len, "\w3. 50张^n"); keys |= MENU_KEY_3
-    len += formatex(menu[len], charsmax(menu)-len, "\w4. 不限制^n"); keys |= MENU_KEY_4
-    len += formatex(menu[len], charsmax(menu)-len, "\w5. 0张^n"); keys |= MENU_KEY_5
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \w返回^n"); keys |= MENU_KEY_9
-    len += formatex(menu[len], charsmax(menu)-len, "\r0. \w退出"); keys |= MENU_KEY_0
+    len = formatex(menu[len], charsmax(menu)-len, "\yLicense Team Limit^n^n")
+    len += formatex(menu[len], charsmax(menu)-len, "\w1. 20^n")
+    keys |= MENU_KEY_1
+    len += formatex(menu[len], charsmax(menu)-len, "\w2. 30^n")
+    keys |= MENU_KEY_2
+    len += formatex(menu[len], charsmax(menu)-len, "\w3. 50^n")
+    keys |= MENU_KEY_3
+    len += formatex(menu[len], charsmax(menu)-len, "\w4. Unlimited^n")
+    keys |= MENU_KEY_4
+    len += formatex(menu[len], charsmax(menu)-len, "\w5. 0^n")
+    keys |= MENU_KEY_5
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r9. \wBack^n")
+    keys |= MENU_KEY_9
+    len += formatex(menu[len], charsmax(menu)-len, "\r0. \wExit")
+    keys |= MENU_KEY_0
     show_menu(id, keys, menu, -1, "hns_adm_limit")
 }
 
 public HandleAdmLimit(id, key) {
-    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED }
+    if (key == 9) { ShowAdminMenu(id); return PLUGIN_HANDLED ;}
     if (key == 8) return PLUGIN_HANDLED
-    new limits[] = {20, 30, 50, -1, 0}
+    new limits[5]
+    limits[0] = 20; limits[1] = 30; limits[2] = 50; limits[3] = -1; limits[4] = 0  // FIX: avoid initializer
     if (key >= 0 && key <= 4) {
         g_iLicenseLimit = limits[key]
         set_cvar_num("hns_license_limit", limits[key])
-        client_print(id, print_console, "[Admin] 许可证上限设为 %d", limits[key])
+        client_print(id, print_console, "[Admin] License limit: %d", limits[key])
     }
     ShowAdmLimit(id)
     return PLUGIN_HANDLED
@@ -1536,7 +1595,8 @@ public HandleAdmLimit(id, key) {
 
 public Cmd_SetLicenseLimit(id, level, cid) {
     if (!cmd_access(id, level, cid, 2)) return PLUGIN_HANDLED
-    new arg[16]; read_argv(1, arg, charsmax(arg))
+    new arg[16]
+    read_argv(1, arg, charsmax(arg))
     g_iLicenseLimit = str_to_num(arg)
     set_cvar_num("hns_license_limit", g_iLicenseLimit)
     return PLUGIN_HANDLED
@@ -1547,21 +1607,22 @@ public Cmd_SetLicenseLimit(id, level, cid) {
 // ======================================================================
 ShowMuteMenu(id) {
     new menu[512], len, keys
-    len = formatex(menu[len], charsmax(menu)-len, "\y禁用玩家语音^n^n")
+    len = formatex(menu[len], charsmax(menu)-len, "\yMute Player^n^n")
     new count = 0
     for (new i = 1; i <= g_iMaxPlayers; i++) {
         if (!is_user_connected(i) || i == id) continue
         count++
-        new name[32]; get_user_name(i, name, charsmax(name))
+        new name[32]
+        get_user_name(i, name, charsmax(name))
         if (g_bMuted[id][i])
-            len += formatex(menu[len], charsmax(menu)-len, "\d%d. %s [已屏蔽]^n", count, name)
+            len += formatex(menu[len], charsmax(menu)-len, "\d%d. %s [Muted]^n", count, name)
         else {
             len += formatex(menu[len], charsmax(menu)-len, "\w%d. %s^n", count, name)
             keys |= (1 << (count - 1))
         }
         if (count >= 9) break
     }
-    len += formatex(menu[len], charsmax(menu)-len, "^n\r0. \w退出")
+    len += formatex(menu[len], charsmax(menu)-len, "^n\r0. \wExit")
     keys |= MENU_KEY_0
     show_menu(id, keys, menu, -1, "hns_mute")
 }
@@ -1573,12 +1634,13 @@ public HandleMuteMenu(id, key) {
     for (new i = 1; i <= g_iMaxPlayers; i++) {
         if (!is_user_connected(i) || i == id) continue
         idx++
-        if (idx == key + 1) { target = i; break }
+        if (idx == key + 1) { target = i; break ;}
     }
     if (target > 0) {
-        g_bMuted[id][target] = !g_bMuted[id][target]
-        new name[32]; get_user_name(target, name, charsmax(name))
-        client_print(id, print_chat, "[语音] %s %s", name, g_bMuted[id][target] ? "已屏蔽" : "已解除")
+        g_bMuted[id][target] = g_bMuted[id][target] ? 0 : 1   // FIX: no bool negation
+        new name[32]
+        get_user_name(target, name, charsmax(name))
+        client_print(id, print_chat, "[Voice] %s %s", name, g_bMuted[id][target] ? "muted" : "unmuted")
     }
     ShowMuteMenu(id)
     return PLUGIN_HANDLED
@@ -1593,7 +1655,6 @@ AddMoney(id, amount) {
 }
 
 SpendMoney(id, amount) {
-    // Spend round money first, then stored
     if (g_iRoundMoney[id] >= amount) {
         g_iRoundMoney[id] -= amount
     } else {
@@ -1605,10 +1666,9 @@ SpendMoney(id, amount) {
     SyncMoney(id)
 }
 
-GiveTeamMoney(CsTeams:team, amount) {
+GiveTeamMoney(team, amount) {                  // FIX: removed CsTeams: tag
     for (new i = 1; i <= g_iMaxPlayers; i++) {
-        if (is_user_connected(i) && cs_get_user_team(i) == team) {
-            // Store round money overflow into stored money
+        if (is_user_connected(i) && getTeamIdx(i) == team) {
             g_iStoredMoney[i] += g_iRoundMoney[i] + amount
             g_iRoundMoney[i] = 0
             SyncMoney(i)
@@ -1637,19 +1697,18 @@ UpdatePlayerSpeed(id) {
     switch (weapon) {
         case CSW_AWP: baseSpeed = 210.0
         case CSW_SCOUT: baseSpeed = 260.0
-        case CSW_SG550, CSW_G3SG1: baseSpeed = 210.0
+        case CSW_SG550: baseSpeed = 210.0       // FIX: split multi-case for 1.82
+        case CSW_G3SG1: baseSpeed = 210.0
     }
 
     new team = getTeamIdx(id)
     new Float:bonus = 0.0
 
-    // Team speed bonus
     if (team == TEAM_T || team == TEAM_CT) {
         if (g_iTeamSpeedLv[team] >= 2) bonus += 10.0
         else if (g_iTeamSpeedLv[team] >= 1) bonus += 5.0
     }
 
-    // Superhuman bonus
     if (g_iSuperhumanLv[id] >= 2) bonus += 15.0
     else if (g_iSuperhumanLv[id] >= 1) bonus += 10.0
 
@@ -1684,6 +1743,7 @@ GetMaxHP(id) {
 ApplyTeamHP(id, team) {
     new maxhp = GetMaxHP(id)
     set_user_health(id, maxhp)
+    team = team ; // FIX: suppress unused warning (parameter kept for API consistency)
 }
 
 RefreshTeamHP(team) {
@@ -1703,18 +1763,14 @@ ApplyPlayerGravity(id) {
     new team = getTeamIdx(id)
     new Float:grav = 1.0
 
-    // Team gravity
     if (team == TEAM_T || team == TEAM_CT) {
         if (g_iTeamGravityLv[team] >= 2) grav = 0.75
         else if (g_iTeamGravityLv[team] >= 1) grav = 0.875
     }
 
-    // Personal kung-fu shop
-    if (g_bKungFuActive[id]) grav = floatmin(grav, 0.75)
-
-    // Superhuman
-    if (g_iSuperhumanLv[id] >= 2) grav = floatmin(grav, 0.75)
-    else if (g_iSuperhumanLv[id] >= 1) grav = floatmin(grav, 0.875)
+    if (g_bKungFuActive[id] && grav > 0.75) grav = 0.75    // FIX: avoid floatmin tag issue
+    if (g_iSuperhumanLv[id] >= 2 && grav > 0.75) grav = 0.75
+    else if (g_iSuperhumanLv[id] >= 1 && grav > 0.875) grav = 0.875
 
     set_pev(id, pev_gravity, grav)
 }
@@ -1744,7 +1800,6 @@ ManageCollision(id) {
     if (!is_user_alive(id)) return
 
     if (g_iCollisionMode == 1) {
-        // Teammate no collision
         new myTeam = cs_get_user_team(id)
         for (new i = 1; i <= g_iMaxPlayers; i++) {
             if (i != id && is_user_alive(i)) {
@@ -1755,7 +1810,6 @@ ManageCollision(id) {
             }
         }
     }
-    // Mode 2: all collision — don't touch solid, leave as default
 }
 
 // ======================================================================
@@ -1765,14 +1819,10 @@ ManageEnemyAA(id) {
     new myTeam = getTeamIdx(id)
     if (myTeam < 0) return
 
-    // Check if enemy team has AA debuff on us
     new enemyTeam = 1 - myTeam
     if (g_iTeamEnemyAALv[enemyTeam] >= 1) {
         new Float:aa = (g_iTeamEnemyAALv[enemyTeam] >= 2) ? 10.0 : 30.0
-        // Only affect movement in air
         if (!(pev(id, pev_flags) & FL_ONGROUND)) {
-            // We set air accelerate by modifying the global cvar
-            // This is a simplified approach — perfect per-player AA requires more work
             set_cvar_float("sv_airaccelerate", aa)
         }
     }
@@ -1782,21 +1832,15 @@ ManageEnemyAA(id) {
 // Fall Damage Level
 // ======================================================================
 GetFallResistLevel(id) {
-    // Return highest applicable level
     new team = getTeamIdx(id)
     new level = 0
 
-    // Shop (personal)
     if (g_bFallShopActive[id]) level = maxx(level, 1)
 
-    // Team license
     if (team == TEAM_T || team == TEAM_CT) {
         if (g_iTeamFallLv[team] >= 2) level = maxx(level, 2)
         else if (g_iTeamFallLv[team] >= 1) level = maxx(level, 1)
     }
-
-    // Enemy AA Lv2 grants fall immunity to buyer's team
-    // (Already handled in Ham_TakeDamage)
 
     return level
 }
@@ -1809,13 +1853,17 @@ public Task_CVBeam(param[2]) {
     new count = param[1]
 
     if (!is_user_alive(id)) return
-
-    // Permanent check: -1 means auto-cv (endless)
     if (count == 0) return
 
-    new CsTeams:team = cs_get_user_team(id)
+    new myTeam = _:cs_get_user_team(id)        // FIX: store as int
+    new enemyTag[4]
+    if (myTeam == _:CS_TEAM_T)
+        copy(enemyTag, 3, "CT")
+    else
+        copy(enemyTag, 3, "T")
+
     new players[32], num
-    get_players(players, num, "ae", (team == CS_TEAM_T) ? "CT" : "T")
+    get_players(players, num, "ae", enemyTag)
 
     for (new i = 0; i < num; i++) {
         new enemy = players[i]
@@ -1850,16 +1898,16 @@ public Task_CVBeam(param[2]) {
 public Task_KungFuExpire(taskID) {
     new id = taskID - TASK_KUNGFU
     if (!is_user_connected(id)) return
-    g_bKungFuActive[id] = false
+    g_bKungFuActive[id] = 0
     ApplyPlayerGravity(id)
-    client_print(id, print_chat, "[商店] 轻功效果已结束。")
+    client_print(id, print_chat, "[Shop] Kung Fu expired.")
 }
 
 public Task_FallShopExpire(taskID) {
     new id = taskID - TASK_FALLSHOP
     if (!is_user_connected(id)) return
-    g_bFallShopActive[id] = false
-    client_print(id, print_chat, "[商店] 摔落减免效果已结束。")
+    g_bFallShopActive[id] = 0
+    client_print(id, print_chat, "[Shop] Fall Resist expired.")
 }
 
 // ======================================================================
@@ -1872,29 +1920,20 @@ public Task_PlayTime() {
         if (g_iPlayTimeSec[i] >= PLAYTIME_PER_LICENSE) {
             g_iPlayTimeSec[i] = 0
             AddLicense(i, 1)
-            client_print(i, print_chat, "[许可证] 在线满30分钟，获得1张许可证！")
+            client_print(i, print_chat, "[License] 30 min online: +1 License!")
             SavePlayerData(i)
         }
     }
 }
 
 public Task_Survival() {
-    for (new i = 1; i <= g_iMaxPlayers; i++) {
-        if (!is_user_alive(i)) continue
-        if (cs_get_user_team(i) != CS_TEAM_T) continue
-        // T survival: every 60s = +500
-        // This is approximate; we count from round start
-    }
-    // Handled via a separate counter in a cleaner implementation
-    // For simplicity, we increment stored money for alive T every 60s
-    static Float:lastSurvivalTick = 0.0
     new Float:now = get_gametime()
-    if (now - lastSurvivalTick >= 60.0) {
-        lastSurvivalTick = now
+    if (now - g_flLastSurvivalTick >= 60.0) {
+        g_flLastSurvivalTick = now
         for (new i = 1; i <= g_iMaxPlayers; i++) {
             if (is_user_alive(i) && cs_get_user_team(i) == CS_TEAM_T) {
                 AddMoney(i, 500)
-                client_print(i, print_chat, "[商店] 存活奖励 +$500！")
+                client_print(i, print_chat, "[Shop] Survival bonus +$500!")
             }
         }
     }
@@ -1904,18 +1943,19 @@ public Task_Survival() {
 // License Display (round start)
 // ======================================================================
 public Task_LicDisplay() {
-    // Show team license usage on screen center
     for (new t = 0; t < 2; t++) {
-        new CsTeams:team = CsTeams:(t + 1)
         new limitStr[16]
-        if (g_iLicenseLimit < 0) formatex(limitStr, charsmax(limitStr), "无限")
-        else if (g_iLicenseLimit == 0) formatex(limitStr, charsmax(limitStr), "禁止")
-        else formatex(limitStr, charsmax(limitStr), "%d", g_iLicenseLimit)
+        if (g_iLicenseLimit < 0)
+            formatex(limitStr, charsmax(limitStr), "Inf")
+        else if (g_iLicenseLimit == 0)
+            formatex(limitStr, charsmax(limitStr), "Off")
+        else
+            formatex(limitStr, charsmax(limitStr), "%d", g_iLicenseLimit)
 
         for (new i = 1; i <= g_iMaxPlayers; i++) {
-            if (is_user_connected(i) && cs_get_user_team(i) == team) {
+            if (is_user_connected(i) && getTeamIdx(i) == t) {
                 set_hudmessage(255, 200, 0, -1.0, 0.15, 0, 0.0, 1.2, 0.0, 0.0, 3)
-                show_hudmessage(i, "团队许可证: %d/%s", g_iTeamLicUsed[t], limitStr)
+                show_hudmessage(i, "Team License: %d/%s", g_iTeamLicUsed[t], limitStr)
             }
         }
     }
@@ -1928,18 +1968,15 @@ public Task_HUD() {
     for (new i = 1; i <= g_iMaxPlayers; i++) {
         if (!is_user_alive(i) || !is_user_connected(i)) continue
 
-        // Bottom-right: money + licenses
-        new totalMoney = g_iRoundMoney[i] + g_iStoredMoney[i]
         set_hudmessage(100, 200, 50, 0.75, 0.85, 0, 0.0, 1.2, 0.0, 0.0, 1)
-        show_hudmessage(i, "回合: $%d^n存储: $%d^n许可: %d",
+        show_hudmessage(i, "Round: $%d^nStored: $%d^nLicense: %d",
             g_iRoundMoney[i], g_iStoredMoney[i], g_iLicenses[i])
 
-        // Below crosshair: speed
         new Float:vel[3]
         pev(i, pev_velocity, vel)
-        new Float:speed = floatsqroot(vel[0]*vel[0] + vel[1]*vel[1])
+        new Float:speed = floatsqroot(vel[0] * vel[0] + vel[1] * vel[1])
         set_hudmessage(255, 255, 255, -1.0, 0.55, 0, 0.0, 1.2, 0.0, 0.0, 2)
-        show_hudmessage(i, "速度: %.0f", speed)
+        show_hudmessage(i, "Speed: %.0f", speed)
     }
 }
 
@@ -1954,63 +1991,58 @@ AddLicense(id, amount) {
 // ======================================================================
 // License Bonus (differential)
 // ======================================================================
-CalcLicenseBonus(bool:ctWon) {
-    new diff = g_iTeamLicUsed[TEAM_CT] - g_iTeamLicUsed[TEAM_T]
-    // Positive diff = CT used more, so T used less
-    // Negative diff = T used more, so CT used less
-
-    new CsTeams:winnerTeam
-    new CsTeams:loserTeam
+CalcLicenseBonus(ctWon) {                      // FIX: plain int parameter
+    new winnerIdx, loserIdx
 
     if (ctWon) {
-        winnerTeam = CS_TEAM_CT
-        loserTeam = CS_TEAM_T
+        winnerIdx = TEAM_CT
+        loserIdx = TEAM_T
     } else {
-        winnerTeam = CS_TEAM_T
-        loserTeam = CS_TEAM_CT
+        winnerIdx = TEAM_T
+        loserIdx = TEAM_CT
     }
 
-    new winnerUsed = g_iTeamLicUsed[_:winnerTeam - 1]
-    new loserUsed  = g_iTeamLicUsed[_:loserTeam - 1]
+    new winnerUsed = g_iTeamLicUsed[winnerIdx]  // FIX: direct index, no tag math
+    new loserUsed  = g_iTeamLicUsed[loserIdx]
 
     new bonus = 0
-    new bool:unlimitedBonus = false
+    new unlimitedBonus = 0
 
     if (winnerUsed < loserUsed) {
         bonus = loserUsed - winnerUsed
-        // Special: winner used 0, loser used some → unlimited
-        if (winnerUsed == 0 && loserUsed > 0)
-            unlimitedBonus = true
-        else
+        if (winnerUsed == 0 && loserUsed > 0) {
+            unlimitedBonus = 1
+        } else {
             bonus = minx(bonus, 3)
+        }
     }
 
     if (bonus <= 0) return
 
     if (unlimitedBonus) {
-        // Divide evenly among team, prioritized by contribution
         new count = 0
-        if (winnerTeam == CS_TEAM_CT) {
-            // Sort by kills
-            new sorted[MAX_PLAYERS+1]
-            new sortedKills[MAX_PLAYERS+1]
+        if (winnerIdx == TEAM_CT) {
+            new sorted[33]
+            new sortedKills[33]
             for (new i = 1; i <= g_iMaxPlayers; i++) {
-                if (is_user_connected(i) && cs_get_user_team(i) == winnerTeam) {
+                if (is_user_connected(i) && getTeamIdx(i) == winnerIdx) {
                     sorted[count] = i
                     sortedKills[count] = g_iRoundKills[i]
                     count++
                 }
             }
-            // Simple sort
             for (new a = 0; a < count - 1; a++) {
                 for (new b = a + 1; b < count; b++) {
                     if (sortedKills[b] > sortedKills[a]) {
-                        new tmp = sorted[a]; sorted[a] = sorted[b]; sorted[b] = tmp
-                        tmp = sortedKills[a]; sortedKills[a] = sortedKills[b]; sortedKills[b] = tmp
+                        new tmp = sorted[a]
+                        sorted[a] = sorted[b]
+                        sorted[b] = tmp
+                        tmp = sortedKills[a]
+                        sortedKills[a] = sortedKills[b]
+                        sortedKills[b] = tmp
                     }
                 }
             }
-            // Distribute
             if (count > 0) {
                 new perPlayer = bonus / count
                 new remainder = bonus % count
@@ -2018,14 +2050,13 @@ CalcLicenseBonus(bool:ctWon) {
                     new amt = perPlayer + (i < remainder ? 1 : 0)
                     if (amt > 0) {
                         AddLicense(sorted[i], amt)
-                        client_print(sorted[i], print_chat, "[许可证] 差额奖励 +%d张！", amt)
+                        client_print(sorted[i], print_chat, "[License] Bonus +%d!", amt)
                     }
                 }
             }
         } else {
-            // T: random to alive players
             for (new i = 1; i <= g_iMaxPlayers; i++) {
-                if (is_user_alive(i) && cs_get_user_team(i) == winnerTeam)
+                if (is_user_alive(i) && getTeamIdx(i) == winnerIdx)
                     count++
             }
             if (count > 0) {
@@ -2033,11 +2064,11 @@ CalcLicenseBonus(bool:ctWon) {
                 new remainder = bonus % count
                 new assigned = 0
                 for (new i = 1; i <= g_iMaxPlayers; i++) {
-                    if (is_user_alive(i) && cs_get_user_team(i) == winnerTeam) {
+                    if (is_user_alive(i) && getTeamIdx(i) == winnerIdx) {
                         new amt = perPlayer + (assigned < remainder ? 1 : 0)
                         if (amt > 0) {
                             AddLicense(i, amt)
-                            client_print(i, print_chat, "[许可证] 差额奖励 +%d张！", amt)
+                            client_print(i, print_chat, "[License] Bonus +%d!", amt)
                         }
                         assigned++
                     }
@@ -2045,14 +2076,12 @@ CalcLicenseBonus(bool:ctWon) {
             }
         }
     } else {
-        // Normal bonus (max 3)
-        if (winnerTeam == CS_TEAM_CT) {
-            // By kills
-            new sorted[MAX_PLAYERS+1]
-            new sortedKills[MAX_PLAYERS+1]
+        if (winnerIdx == TEAM_CT) {
+            new sorted[33]
+            new sortedKills[33]
             new count = 0
             for (new i = 1; i <= g_iMaxPlayers; i++) {
-                if (is_user_connected(i) && cs_get_user_team(i) == winnerTeam) {
+                if (is_user_connected(i) && getTeamIdx(i) == winnerIdx) {
                     sorted[count] = i
                     sortedKills[count] = g_iRoundKills[i]
                     count++
@@ -2061,28 +2090,31 @@ CalcLicenseBonus(bool:ctWon) {
             for (new a = 0; a < count - 1; a++) {
                 for (new b = a + 1; b < count; b++) {
                     if (sortedKills[b] > sortedKills[a]) {
-                        new tmp = sorted[a]; sorted[a] = sorted[b]; sorted[b] = tmp
-                        tmp = sortedKills[a]; sortedKills[a] = sortedKills[b]; sortedKills[b] = tmp
+                        new tmp = sorted[a]
+                        sorted[a] = sorted[b]
+                        sorted[b] = tmp
+                        tmp = sortedKills[a]
+                        sortedKills[a] = sortedKills[b]
+                        sortedKills[b] = tmp
                     }
                 }
             }
             for (new i = 0; i < bonus && i < count; i++) {
                 AddLicense(sorted[i], 1)
-                client_print(sorted[i], print_chat, "[许可证] 差额奖励 +1张！")
+                client_print(sorted[i], print_chat, "[License] Bonus +1!")
             }
         } else {
-            // T: to alive
             new count = 0
             for (new i = 1; i <= g_iMaxPlayers; i++) {
-                if (is_user_alive(i) && cs_get_user_team(i) == winnerTeam)
+                if (is_user_alive(i) && getTeamIdx(i) == winnerIdx)
                     count++
             }
             if (count > 0) {
                 new assigned = 0
                 for (new i = 1; i <= g_iMaxPlayers && assigned < bonus; i++) {
-                    if (is_user_alive(i) && cs_get_user_team(i) == winnerTeam) {
+                    if (is_user_alive(i) && getTeamIdx(i) == winnerIdx) {
                         AddLicense(i, 1)
-                        client_print(i, print_chat, "[许可证] 差额奖励 +1张！")
+                        client_print(i, print_chat, "[License] Bonus +1!")
                         assigned++
                     }
                 }
@@ -2094,18 +2126,18 @@ CalcLicenseBonus(bool:ctWon) {
 // ======================================================================
 // Utility: Count Players
 // ======================================================================
-CountAlive(CsTeams:team) {
+CountAlive(team) {                             // FIX: removed CsTeams: tag
     new count = 0
     for (new i = 1; i <= g_iMaxPlayers; i++) {
-        if (is_user_alive(i) && cs_get_user_team(i) == team) count++
+        if (is_user_alive(i) && getTeamIdx(i) == team) count++
     }
     return count
 }
 
-CountTotal(CsTeams:team) {
+CountTotal(team) {                             // FIX: removed CsTeams: tag
     new count = 0
     for (new i = 1; i <= g_iMaxPlayers; i++) {
-        if (is_user_connected(i) && cs_get_user_team(i) == team) count++
+        if (is_user_connected(i) && getTeamIdx(i) == team) count++
     }
     return count
 }
@@ -2122,7 +2154,8 @@ public Cmd_BlockBuy(id) {
 // ======================================================================
 SavePlayerData(id) {
     if (!is_user_connected(id)) return
-    new authid[35]; get_user_authid(id, authid, charsmax(authid))
+    new authid[35]
+    get_user_authid(id, authid, charsmax(authid))
     new data[128]
     formatex(data, charsmax(data), "%d %d %d",
         g_iStoredMoney[id], g_iLicenses[id], g_iPlayTimeSec[id])
@@ -2130,8 +2163,10 @@ SavePlayerData(id) {
 }
 
 LoadPlayerData(id) {
-    new authid[35]; get_user_authid(id, authid, charsmax(authid))
-    new data[128]; new len
+    new authid[35]
+    get_user_authid(id, authid, charsmax(authid))
+    new data[128]
+    new len
     if (nvault_lookup(g_vault, authid, data, charsmax(data), len)) {
         new sMoney[16], sLic[16], sTime[16]
         parse(data, sMoney, charsmax(sMoney), sLic, charsmax(sLic), sTime, charsmax(sTime))
@@ -2140,4 +2175,3 @@ LoadPlayerData(id) {
         g_iPlayTimeSec[id] = str_to_num(sTime)
     }
 }
-
